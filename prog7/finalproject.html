@@ -1,0 +1,275 @@
+<html>
+<meta charset="utf-8"/>
+  <style>
+    html {background-color: gray;
+          }
+    body {
+        margin: 0 auto;
+
+    }
+    h1 {
+        display: block;
+        margin:10px;
+        text-align: center;
+    }
+    
+    p {
+        margin: 10px;
+    }
+    #webstuff {
+        margin: 10 10 10 10 ;
+        display: flex;
+        align-items: flex-end;
+        
+    }
+    
+    
+    #pic{
+        display:block;
+        margin-left: auto;
+        margin-right: auto;
+
+    }
+   
+
+  </style>
+
+  <head>
+	<script type="text/javascript" src="webgl-utils.js"></script>
+	<script type="text/javascript" src="webgl-debug.js"></script>
+	<script type="text/javascript" src="cuon-utils.js"></script>
+	<script type="text/javascript" src="cuon-matrix.js"></script>
+	<script type="text/javascript" src="chest.js"></script>
+	<script type="text/javascript" src="square.js"></script>
+	<script type="text/javascript" src="finalproject.js"></script>
+  </head>
+
+  <div id="first">
+  <h1> Final Project CSC 4356 Henry Toups  </h1>
+  
+  <p>For my final project I decided to try and develop a Dynamic Cube Map with floating shapes so that the object in the center will reflect them.  The first step of this process is rendering a skybox.  A skybox is essentially a 3D cube whose faces are textured with a panoramic image of a scene.  By placing the camera inside this box, and making it rotatable, it gives the viewer the effect that they are inside the scene looking around.  Here is link to a website that contains the image files that will be rendered into a skybox:
+ 
+
+  <a href="http://imgur.com/gallery/5cbZh">images</a> 
+ </p>
+  <br><p>Here is a rotatable skybox, based off of these images, next to a picture of the layout of the images: </p></br>
+  
+
+
+  
+ 
+ </div>
+  <body onload="init()">
+
+  	<script id="texVertexShader" type ="x-shader">
+  	   precision mediump float;
+
+  	 uniform mat4 projectionMatrix;
+	   uniform mat4 viewMatrix;
+	   uniform mat4 modelMatrix;
+	   uniform vec4 lightPosition;
+
+	   attribute vec4 vertexPosition;
+	   attribute vec2 vertexTexCoord;
+	   attribute vec3 vertexNormal;
+	   attribute vec3 tangent;
+
+	   varying vec2 fragmentTexCoord;
+	   varying vec3 fragmentView;
+	   varying vec3 fragmentLight;
+	   varying vec3 fragmentNormal;
+
+	   uniform float alpha;
+	   uniform vec3 lightColor;
+
+	   mat4 modelViewMatrix;
+	   vec4 p,q;
+
+
+	   void main(){
+
+	   		modelViewMatrix = viewMatrix*modelMatrix;
+	   		p = modelViewMatrix*vertexPosition;
+	   		q = viewMatrix*lightPosition;
+
+	   		vec3 T = mat3(viewMatrix*modelMatrix)* tangent;
+	   		vec3 N = mat3(viewMatrix*modelMatrix)* vertexNormal;
+	   		vec3 B = cross(N,T);
+
+	   		mat3 M = mat3(T,B,N);
+
+
+	   		fragmentView = -normalize(vec3(-p)) * M;
+	   		fragmentNormal = normalize(mat3(modelViewMatrix)*vertexNormal);
+	   		fragmentLight = normalize(vec3(q-p))* M;
+	   		fragmentTexCoord = vertexTexCoord;
+
+	   		gl_Position = projectionMatrix*viewMatrix*modelMatrix*vertexPosition;
+	   }
+	</script>
+	<script id = "texFragmentShader" type = "x-shader">
+		precision mediump float;
+
+		vec3 modelColor;
+		
+		varying vec2 fragmentTexCoord;
+		varying vec3 fragmentView;
+		varying vec3 fragmentLight;
+		varying vec3 fragmentNormal;
+
+		vec3 n, l, v, h;
+	    float d, s;
+		uniform float alpha;
+		uniform vec3 lightColor;
+	   
+
+		uniform sampler2D textureSampler0;
+
+		void main(){
+			n = normalize(fragmentNormal);
+	   		l = normalize(fragmentLight);
+	   		v = normalize(fragmentView);
+	   		h = normalize(l+v);
+
+	   		d = max(dot(l,n),0.0);
+	   		s = pow(max(dot(h,n),0.0),alpha);
+
+			modelColor = texture2D(textureSampler0,fragmentTexCoord).rgb;
+			gl_FragColor = vec4(modelColor*lightColor*d + lightColor*s,1.0);
+			
+		}
+	</script>
+	<script id="blurShader" type="x-shader">
+		precision mediump float;
+		varying vec2 fragmentTexCoord;
+		uniform sampler2D textureSampler0;
+
+    void main()
+    {
+      float d = 1.0 / 512.0;
+
+      vec3 c1 = texture2D(textureSampler0, fragmentTexCoord + vec2(-d, -d)).rgb;
+      vec3 c2 = texture2D(textureSampler0, fragmentTexCoord + vec2(0, -d)).rgb;
+      vec3 c3 = texture2D(textureSampler0, fragmentTexCoord + vec2(d, -d)).rgb;
+      vec3 c4 = texture2D(textureSampler0, fragmentTexCoord + vec2(-d, 0)).rgb;
+      vec3 c5 = texture2D(textureSampler0, fragmentTexCoord + vec2(0, 0)).rgb;
+      vec3 c6 = texture2D(textureSampler0, fragmentTexCoord + vec2(d, 0)).rgb;
+      vec3 c7 = texture2D(textureSampler0, fragmentTexCoord + vec2(-d, d)).rgb;
+      vec3 c8 = texture2D(textureSampler0, fragmentTexCoord + vec2(0, d)).rgb;
+      vec3 c9 = texture2D(textureSampler0, fragmentTexCoord + vec2(d, d)).rgb;
+
+      vec3 c = 1.0 * c1 + 2.0 * c2 + 1.0 * c3 +
+               2.0 * c4 + 4.0 * c5 + 2.0 * c6 +
+               1.0 * c7 + 2.0 * c8 + 1.0 * c9;
+
+      gl_FragColor = vec4(c/16.0, 1.0);
+    }
+
+  </script>
+  <script id="edgeShader" type="x-shader">
+    precision mediump float;
+    varying vec2 fragmentTexCoord;
+    uniform sampler2D textureSampler0;
+
+    void main()
+    {
+      float d = 1.0 / 512.0;
+
+      vec3 c1 = texture2D(textureSampler0, fragmentTexCoord + vec2(-d, -d)).rgb;
+      vec3 c2 = texture2D(textureSampler0, fragmentTexCoord + vec2(0, -d)).rgb;
+      vec3 c3 = texture2D(textureSampler0, fragmentTexCoord + vec2(d, -d)).rgb;
+      vec3 c4 = texture2D(textureSampler0, fragmentTexCoord + vec2(-d, 0)).rgb;
+      vec3 c5 = texture2D(textureSampler0, fragmentTexCoord + vec2(0, 0)).rgb;
+      vec3 c6 = texture2D(textureSampler0, fragmentTexCoord + vec2(d, 0)).rgb;
+      vec3 c7 = texture2D(textureSampler0, fragmentTexCoord + vec2(-d, d)).rgb;
+      vec3 c8 = texture2D(textureSampler0, fragmentTexCoord + vec2(0, d)).rgb;
+      vec3 c9 = texture2D(textureSampler0, fragmentTexCoord + vec2(d, d)).rgb;
+
+      vec3 x = (c3 + c6 + c6 + c9) - (c1 + c4 + c4 + c7);
+      vec3 y = (c1 + c2 + c2 + c3) - (c7 + c8 + c8 + c9);
+
+      gl_FragColor = vec4(sqrt(x*x + y*y), 1.0);
+    }
+
+  </script>
+  <script id="thresholdShader" type="x-shader">
+    precision mediump float;
+    varying vec2 fragmentTexCoord;
+    uniform sampler2D textureSampler0;
+
+    void main()
+    {
+      vec3 c = texture2D(textureSampler0, fragmentTexCoord).rgb;
+      float d = dot(c, vec3(0.213,0.715,0.072));
+
+      if(d > 0.4)
+      {
+        gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+      }
+
+      else
+      {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+      }
+    }
+ 
+  </script>
+  <script id="squareVertexShader" type="x-Shader">
+    precision mediump float;
+    attribute vec4 vertexPosition;
+    attribute vec2 vertexTexCoord;
+    varying vec2 fragmentTexCoord;
+
+    void main()
+    {
+        fragmentTexCoord = vertexTexCoord;
+        gl_Position = vertexPosition;
+    }
+    </script>
+
+  <script id="squareFragmentShader" type="x-shader">
+    precision mediump float;
+    varying vec2 fragmentTexCoord;
+    uniform sampler2D textureSampler0;
+
+    void main()
+    {
+        gl_FragColor = texture2D(textureSampler0, fragmentTexCoord);
+    }
+  </script>
+  <script id="cubeVertexShader" type="x-shader">
+    attribute vec2 vertexPosition;
+
+    uniform mat4 inv_mvp;
+    
+    varying vec3 tex_coords;
+    
+    void main(){
+      
+      gl_Position = vec4(vertexPosition, 0, 1);
+      tex_coords = (inv_mvp *gl_Position).xyz;
+    }
+    </script>
+    <script id="cubeFragmentShader" type="x-shader">
+      precision mediump float;
+      uniform samplerCube skybox;
+      varying vec3 tex_coords;
+
+      void main(){
+        gl_FragColor = textureCube(skybox, tex_coords);
+      }
+    </script>
+   
+ 
+ <div id="webstuff">
+	<canvas id="webgl" width="512px" height="512px"></canvas>
+ <img src="skybox.png" id="pic" align="middle" style="width:384px;height:288px;">
+  </div>
+  <p>much of the code for the skybox was taken from the source code of this website  <a href="http://www.humus.name/index.php?page=Cubemap&item=Yokohama3">here</a> as I had trouble implementing the skybox</p>
+
+<p>As you can see, the seams of the pictures are not very cleanly drawn, this is most likely because I had to resize the original images because they were not power of two. The skybox works inside the shader by creating a vector from the origin to the the nearest texture, whichever texture it is closer to, it will render.  This creates problems at the seams, because if there is no blending of the lines where the viewing vectors are equidistant between two textures, the fragment shader will not correctly color the pixels to the blend of them.</p>
+<br> 
+<p>The next stage in creating the dynamic cube map is to render an object in the center of the skybox, where the viewing plane is; however I ran out of time/ability in this step and was unable to successfully render an item into the skybox.  I did however heavily research how to do it, and found a great example online <a href="http://math.hws.edu/graphicsbook/source/webgl/cube-camera.html">here</a> but had a lot of trouble implementing it.  To my understanding the way to create a dynamic cube map is to create shaders for the reflective object that take the inverse of the rotation of the skybox, so the reflective object remains in place while the skybox moves, but the reflective surface changes inversely with the view angle.  The moving cubes in the example in the link were made by creating random cube objects with random trajectories, velocities, and colors and rendered inside the skybox.  The reflective object is rendered last, because the reflection needs to reflect the change in the objects moving in front of it.  The skybox is rendered first, followed immediately by the cubes, then the reflective surface.  In this example he also creates a drop-down menu for different shapes for the center reflective object.  Additionally, each wall of the cube map is rendered seperately and sequentially, before the moving cubes and reflective surface.  This method implements the use of a framebuffer, so that rendering can happen offscreen which makes everything appear much more smoothly, as well as a renderbuffer which is specifically designed to hold images for framebuffers.<b> Here is a picture of the fully working dynamic cube map provided by the link above: <br> <center><img src="example.png" id="exPic" align="middle" style="width:512px;height:512px;"> </center></p>
+
+</body>
+</html>
